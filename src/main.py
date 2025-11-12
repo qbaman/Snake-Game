@@ -39,21 +39,23 @@ def main():
     food = random_empty(set(snake.body))
     score = 0
 
-    # Features
+    # Feature toggles
     AUTO = False                 # A: auto pathfinding
-    QUEUE_MODE = False           # Q: input queue mode
-    input_queue = deque()        # FIFO for directions
+    QUEUE_MODE = False           # Q: input FIFO queue
+    SHOW_DEBUG = True            # D: call-stack pane
+
+    # State
+    input_queue = deque()
+    debug_events = deque(maxlen=8)
     bench_msg = None
     bench_timeleft = 0.0
     path = None
 
-    # Debug: call-stack trace using an ADT Stack
-    debug_events = deque(maxlen=8)
+    # Debug helpers using Stack ADT
     def trace_push(stk, label):
         stk.push(label); debug_events.append(f"+ {label}")
     def trace_pop(stk):
-        if not stk.is_empty():
-            debug_events.append(f"- {stk.pop()}")
+        if not stk.is_empty(): debug_events.append(f"- {stk.pop()}")
 
     def compute_path(snk, target):
         body = list(snk.body)
@@ -75,8 +77,9 @@ def main():
                 if e.key == pygame.K_q:
                     QUEUE_MODE = not QUEUE_MODE
                 elif e.key == pygame.K_a:
-                    AUTO = not AUTO
-                    path = None
+                    AUTO = not AUTO; path = None
+                elif e.key == pygame.K_d:
+                    SHOW_DEBUG = not SHOW_DEBUG
                 elif e.key == pygame.K_b:
                     t_merge = time_sort(mergesort, n=5000, trials=1)
                     t_quick = time_sort(quicksort, n=5000, trials=1)
@@ -96,7 +99,7 @@ def main():
                         snake.set_dir(dx, dy)                 # immediate
         trace_pop(callstack)
 
-        # If queue mode, consume one direction per tick (FIFO)
+        # consume one queued direction per tick (FIFO)
         if QUEUE_MODE and input_queue and not AUTO:
             dx, dy = input_queue.popleft()
             snake.set_dir(dx, dy)
@@ -120,9 +123,7 @@ def main():
         trace_pop(callstack)
 
         # --- update ---
-        trace_push(callstack, "move")
-        snake.move()
-        trace_pop(callstack)
+        trace_push(callstack, "move"); snake.move(); trace_pop(callstack)
 
         trace_push(callstack, "collide")
         hx, hy = snake.head()
@@ -142,32 +143,28 @@ def main():
         for seg in snake.body: draw_cell(screen, seg, GREEN)
         draw_cell(screen, food, RED)
         if AUTO and path:
-            for cell in path[1:-1]:
-                draw_cell(screen, cell, BLUE)
+            for cell in path[1:-1]: draw_cell(screen, cell, BLUE)
 
         hud = font.render(
-            f"Score: {score} | Auto: {'ON' if AUTO else 'OFF'} (A) | Queue: {'ON' if QUEUE_MODE else 'OFF'} (Q) | Bench (B)",
+            f"Score: {score} | Auto: {'ON' if AUTO else 'OFF'} (A) | Queue: {'ON' if QUEUE_MODE else 'OFF'} (Q) | Debug: {'ON' if SHOW_DEBUG else 'OFF'} (D) | Bench (B)",
             True, WHITE)
         screen.blit(hud, (8, 8))
 
-        # input queue preview
         if QUEUE_MODE and input_queue:
             preview = ''.join({(0,-1):'↑',(0,1):'↓',(-1,0):'←',(1,0):'→'}[d] for d in list(input_queue)[:12])
-            msg = font.render(f"Queue: {len(input_queue)} [{preview}]", True, WHITE)
-            screen.blit(msg, (8, 30))
+            screen.blit(font.render(f"Queue: {len(input_queue)} [{preview}]", True, WHITE), (8, 30))
 
-        # call-stack debug (last few push/pop events)
-        y = 50
-        for ev in list(debug_events):
-            screen.blit(font.render(ev, True, WHITE), (8, y))
-            y += 16
-        trace_pop(callstack)  # pop "draw"
-        trace_pop(callstack)  # pop "tick"
+        if SHOW_DEBUG:
+            y = 50
+            for ev in list(debug_events):
+                screen.blit(font.render(ev, True, WHITE), (8, y))
+                y += 16
+        trace_pop(callstack)  # draw
+        trace_pop(callstack)  # tick
 
         if bench_timeleft > 0:
             bench_timeleft -= 1.0 / FPS
-            bm = font.render(bench_msg, True, WHITE)
-            screen.blit(bm, (8, y + 4))
+            screen.blit(font.render(bench_msg, True, WHITE), (8, WINDOW_H - 26))
 
         pygame.display.flip()
         clock.tick(FPS)
