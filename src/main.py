@@ -3,6 +3,7 @@ from .game.constants import *
 from .game.snake import Snake
 from .game.grid import in_bounds, random_empty
 from .game import pathfinding
+from .game.sorting_bench import mergesort, quicksort, time_sort
 
 def draw_grid(surf):
     for x in range(0, WINDOW_W, CELL):
@@ -38,16 +39,17 @@ def main():
 
     AUTO = False
     path = None
+    bench_msg = None
+    bench_timeleft = 0.0
 
     def compute_path(snk, target):
         body = list(snk.body)
-        blocked = set(body[1:-1])  # head free; tail cell treated as free this tick
+        blocked = set(body[1:-1])  # head free; tail cell vacates this tick
         return pathfinding.astar(snk.head(), target, blocked, GRID_W, GRID_H) \
             or pathfinding.bfs(snk.head(), target, blocked, GRID_W, GRID_H)
 
     running = True
     while running:
-        # input
         for e in pygame.event.get():
             if e.type == pygame.QUIT:
                 running = False
@@ -63,6 +65,11 @@ def main():
                 elif e.key == pygame.K_a:
                     AUTO = not AUTO
                     path = None
+                elif e.key == pygame.K_b:
+                    t_merge = time_sort(mergesort, n=5000, trials=1)
+                    t_quick = time_sort(quicksort, n=5000, trials=1)
+                    bench_msg = f"Bench 5k: merge {t_merge:.3f}s | quick {t_quick:.3f}s"
+                    bench_timeleft = 3.0
 
         # auto-path planning: replan every tick and validate next step
         if AUTO:
@@ -75,7 +82,7 @@ def main():
             if p and len(p) > 1:
                 nx, ny = p[1]
                 dx, dy = nx - snake.head()[0], ny - snake.head()[1]
-                snake.set_dir(dx, dy, force=True)  # allow 180° when planner decides
+                snake.set_dir(dx, dy, force=True)
                 path = p
             else:
                 path = None
@@ -103,8 +110,13 @@ def main():
             for cell in path[1:-1]:
                 draw_cell(screen, cell, BLUE)
 
-        hud = font.render(f"Score: {score} | Auto: {'ON' if AUTO else 'OFF'} (A)", True, WHITE)
+        hud = font.render(f"Score: {score} | Auto: {'ON' if AUTO else 'OFF'} (A) | Bench (B)", True, WHITE)
         screen.blit(hud, (8, 8))
+
+        if bench_timeleft > 0:
+            bench_timeleft -= 1.0 / FPS
+            msg = font.render(bench_msg, True, WHITE)
+            screen.blit(msg, (8, 30))
 
         pygame.display.flip()
         clock.tick(FPS)
