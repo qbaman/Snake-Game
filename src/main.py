@@ -14,6 +14,17 @@ def draw_cell(surf, pos, color):
     x, y = pos
     pygame.draw.rect(surf, color, (x * CELL, y * CELL, CELL, CELL))
 
+def game_over(screen, score, font):
+    screen.fill(BLACK)
+    msg = font.render(f"Game Over. Score: {score}. Press any key to exit.", True, WHITE)
+    screen.blit(msg, (20, WINDOW_H // 2))
+    pygame.display.flip()
+    waiting = True
+    while waiting:
+        for e in pygame.event.get():
+            if e.type == pygame.QUIT or e.type == pygame.KEYDOWN:
+                waiting = False
+
 def main():
     pygame.init()
     screen = pygame.display.set_mode((WINDOW_W, WINDOW_H))
@@ -55,7 +66,10 @@ def main():
         if AUTO and path and len(path) > 1:
             nx, ny = path[1]
             dx, dy = nx - snake.head()[0], ny - snake.head()[1]
-            snake.set_dir(dx, dy)
+            # was:snake.set_dir(dx, dy)
+            snake.set_dir(dx, dy, force=True)
+
+    
 
         # update
         snake.move()
@@ -86,6 +100,7 @@ def main():
         pygame.display.flip()
         clock.tick(FPS)
 
+    game_over(screen, score, font)
     pygame.quit()
 
 if __name__ == "__main__":
