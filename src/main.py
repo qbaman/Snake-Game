@@ -1,6 +1,7 @@
 import pygame
 from .game.constants import *
 from .game.snake import Snake
+from .game.grid import in_bounds, random_empty
 
 def draw_grid(surf):
     for x in range(0, WINDOW_W, CELL):
@@ -12,16 +13,17 @@ def draw_cell(surf, pos, color):
     x, y = pos
     pygame.draw.rect(surf, color, (x*CELL, y*CELL, CELL, CELL))
 
-def in_bounds(x, y):
-    return 0 <= x < GRID_W and 0 <= y < GRID_H
-
 def main():
     pygame.init()
     screen = pygame.display.set_mode((WINDOW_W, WINDOW_H))
     pygame.display.set_caption("Unit 24 Snake")
     clock = pygame.time.Clock()
+    font = pygame.font.SysFont(None, 24)
 
     snake = Snake((GRID_W//2, GRID_H//2))
+    food = random_empty(set(snake.body))
+    score = 0
+
     running = True
     while running:
         for e in pygame.event.get():
@@ -37,10 +39,19 @@ def main():
         if not in_bounds(hx, hy) or (hx, hy) in list(snake.body)[1:]:
             running = False
 
+        if (hx, hy) == food:
+            score += 1
+            snake.grow()
+            food = random_empty(set(snake.body))
+
         screen.fill(BLACK)
         draw_grid(screen)
-        for seg in snake.body:
-            draw_cell(screen, seg, (0, 200, 0))
+        for seg in snake.body: draw_cell(screen, seg, (0, 200, 0))
+        draw_cell(screen, food, (200, 0, 0))
+
+        hud = font.render(f"Score: {score}", True, (255, 255, 255))
+        screen.blit(hud, (8, 8))
+
         pygame.display.flip()
         clock.tick(FPS)
 
