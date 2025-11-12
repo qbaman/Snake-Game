@@ -1,9 +1,11 @@
 import pygame
+from collections import deque
 from .game.constants import *
 from .game.snake import Snake
 from .game.grid import in_bounds, random_empty
 from .game import pathfinding
 from .game.sorting_bench import mergesort, quicksort, time_sort
+from .game.adt_stack import Stack
 
 def draw_grid(surf):
     for x in range(0, WINDOW_W, CELL):
@@ -37,10 +39,21 @@ def main():
     food = random_empty(set(snake.body))
     score = 0
 
-    AUTO = False
-    path = None
+    # Features
+    AUTO = False                 # A: auto pathfinding
+    QUEUE_MODE = False           # Q: input queue mode
+    input_queue = deque()        # FIFO for directions
     bench_msg = None
     bench_timeleft = 0.0
+    path = None
+
+    # Debug: call-stack trace using an ADT Stack
+    debug_events = deque(maxlen=8)
+    def trace_push(stk, label):
+        stk.push(label); debug_events.append(f"+ {label}")
+    def trace_pop(stk):
+        if not stk.is_empty():
+            debug_events.append(f"- {stk.pop()}")
 
     def compute_path(snk, target):
         body = list(snk.body)
@@ -50,18 +63,17 @@ def main():
 
     running = True
     while running:
+        callstack = Stack()
+        trace_push(callstack, "tick")
+
+        # --- input ---
+        trace_push(callstack, "input")
         for e in pygame.event.get():
             if e.type == pygame.QUIT:
                 running = False
             elif e.type == pygame.KEYDOWN:
-                if e.key == pygame.K_UP:
-                    snake.set_dir(0, -1)
-                elif e.key == pygame.K_DOWN:
-                    snake.set_dir(0, 1)
-                elif e.key == pygame.K_LEFT:
-                    snake.set_dir(-1, 0)
-                elif e.key == pygame.K_RIGHT:
-                    snake.set_dir(1, 0)
+                if e.key == pygame.K_q:
+                    QUEUE_MODE = not QUEUE_MODE
                 elif e.key == pygame.K_a:
                     AUTO = not AUTO
                     path = None
@@ -70,13 +82,32 @@ def main():
                     t_quick = time_sort(quicksort, n=5000, trials=1)
                     bench_msg = f"Bench 5k: merge {t_merge:.3f}s | quick {t_quick:.3f}s"
                     bench_timeleft = 3.0
+                elif e.key in (pygame.K_UP, pygame.K_DOWN, pygame.K_LEFT, pygame.K_RIGHT):
+                    dirmap = {
+                        pygame.K_UP: (0, -1),
+                        pygame.K_DOWN: (0, 1),
+                        pygame.K_LEFT: (-1, 0),
+                        pygame.K_RIGHT: (1, 0),
+                    }
+                    dx, dy = dirmap[e.key]
+                    if QUEUE_MODE and not AUTO:
+                        input_queue.append((dx, dy))          # enqueue in FIFO
+                    else:
+                        snake.set_dir(dx, dy)                 # immediate
+        trace_pop(callstack)
 
-        # auto-path planning: replan every tick and validate next step
+        # If queue mode, consume one direction per tick (FIFO)
+        if QUEUE_MODE and input_queue and not AUTO:
+            dx, dy = input_queue.popleft()
+            snake.set_dir(dx, dy)
+
+        # --- plan (auto) ---
+        trace_push(callstack, "plan")
         if AUTO:
             p = compute_path(snake, food)
             if p and len(p) > 1:
                 nx, ny = p[1]
-                body_now = set(list(snake.body)[:-1])  # tail vacates; exclude it
+                body_now = set(list(snake.body)[:-1])  # tail vacates
                 if not in_bounds(nx, ny) or (nx, ny) in body_now:
                     p = compute_path(snake, food)
             if p and len(p) > 1:
@@ -86,37 +117,57 @@ def main():
                 path = p
             else:
                 path = None
+        trace_pop(callstack)
 
-        # update
+        # --- update ---
+        trace_push(callstack, "move")
         snake.move()
+        trace_pop(callstack)
+
+        trace_push(callstack, "collide")
         hx, hy = snake.head()
         if not in_bounds(hx, hy) or (hx, hy) in list(snake.body)[1:]:
             running = False
-
         if (hx, hy) == food:
             score += 1
             snake.grow()
             food = random_empty(set(snake.body))
-            path = None  # recompute next tick
+            path = None
+        trace_pop(callstack)
 
-        # draw
+        # --- draw ---
+        trace_push(callstack, "draw")
         screen.fill(BLACK)
         draw_grid(screen)
-        for seg in snake.body:
-            draw_cell(screen, seg, GREEN)
+        for seg in snake.body: draw_cell(screen, seg, GREEN)
         draw_cell(screen, food, RED)
-
         if AUTO and path:
             for cell in path[1:-1]:
                 draw_cell(screen, cell, BLUE)
 
-        hud = font.render(f"Score: {score} | Auto: {'ON' if AUTO else 'OFF'} (A) | Bench (B)", True, WHITE)
+        hud = font.render(
+            f"Score: {score} | Auto: {'ON' if AUTO else 'OFF'} (A) | Queue: {'ON' if QUEUE_MODE else 'OFF'} (Q) | Bench (B)",
+            True, WHITE)
         screen.blit(hud, (8, 8))
+
+        # input queue preview
+        if QUEUE_MODE and input_queue:
+            preview = ''.join({(0,-1):'↑',(0,1):'↓',(-1,0):'←',(1,0):'→'}[d] for d in list(input_queue)[:12])
+            msg = font.render(f"Queue: {len(input_queue)} [{preview}]", True, WHITE)
+            screen.blit(msg, (8, 30))
+
+        # call-stack debug (last few push/pop events)
+        y = 50
+        for ev in list(debug_events):
+            screen.blit(font.render(ev, True, WHITE), (8, y))
+            y += 16
+        trace_pop(callstack)  # pop "draw"
+        trace_pop(callstack)  # pop "tick"
 
         if bench_timeleft > 0:
             bench_timeleft -= 1.0 / FPS
-            msg = font.render(bench_msg, True, WHITE)
-            screen.blit(msg, (8, 30))
+            bm = font.render(bench_msg, True, WHITE)
+            screen.blit(bm, (8, y + 4))
 
         pygame.display.flip()
         clock.tick(FPS)
