@@ -39,6 +39,12 @@ def main():
     AUTO = False
     path = None
 
+    def compute_path(snk, target):
+        body = list(snk.body)
+        blocked = set(body[1:-1])  # head free; tail cell treated as free this tick
+        return pathfinding.astar(snk.head(), target, blocked, GRID_W, GRID_H) \
+            or pathfinding.bfs(snk.head(), target, blocked, GRID_W, GRID_H)
+
     running = True
     while running:
         # input
@@ -58,18 +64,21 @@ def main():
                     AUTO = not AUTO
                     path = None
 
-        # auto-path planning
-        if AUTO and (path is None or len(path) <= 1):
-            blocked = set(list(snake.body)[1:])  # everything except head
-            path = pathfinding.astar(snake.head(), food, blocked, GRID_W, GRID_H) \
-                   or pathfinding.bfs(snake.head(), food, blocked, GRID_W, GRID_H)
-        if AUTO and path and len(path) > 1:
-            nx, ny = path[1]
-            dx, dy = nx - snake.head()[0], ny - snake.head()[1]
-            # was:snake.set_dir(dx, dy)
-            snake.set_dir(dx, dy, force=True)
-
-    
+        # auto-path planning: replan every tick and validate next step
+        if AUTO:
+            p = compute_path(snake, food)
+            if p and len(p) > 1:
+                nx, ny = p[1]
+                body_now = set(list(snake.body)[:-1])  # tail vacates; exclude it
+                if not in_bounds(nx, ny) or (nx, ny) in body_now:
+                    p = compute_path(snake, food)
+            if p and len(p) > 1:
+                nx, ny = p[1]
+                dx, dy = nx - snake.head()[0], ny - snake.head()[1]
+                snake.set_dir(dx, dy, force=True)  # allow 180° when planner decides
+                path = p
+            else:
+                path = None
 
         # update
         snake.move()
@@ -92,7 +101,7 @@ def main():
 
         if AUTO and path:
             for cell in path[1:-1]:
-                draw_cell(screen, cell, (50, 50, 255))
+                draw_cell(screen, cell, BLUE)
 
         hud = font.render(f"Score: {score} | Auto: {'ON' if AUTO else 'OFF'} (A)", True, WHITE)
         screen.blit(hud, (8, 8))
