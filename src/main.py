@@ -1,3 +1,4 @@
+import time
 import pygame
 from collections import deque
 from .game.constants import *
@@ -40,9 +41,10 @@ def main():
     score = 0
 
     # Feature toggles
-    AUTO = False                 # A: auto pathfinding
-    QUEUE_MODE = False           # Q: input FIFO queue
-    SHOW_DEBUG = True            # D: call-stack pane
+    AUTO = False                  # A: auto pathfinding
+    QUEUE_MODE = False            # Q: input FIFO queue
+    SHOW_DEBUG = True             # D: call-stack pane
+    SOLVER = "A*"                 # F: toggle A* / BFS
 
     # State
     input_queue = deque()
@@ -50,6 +52,7 @@ def main():
     bench_msg = None
     bench_timeleft = 0.0
     path = None
+    last_solver_stats = None  # (solver, visited, steps, seconds)
 
     # Debug helpers using Stack ADT
     def trace_push(stk, label):
@@ -57,11 +60,17 @@ def main():
     def trace_pop(stk):
         if not stk.is_empty(): debug_events.append(f"- {stk.pop()}")
 
-    def compute_path(snk, target):
+    def compute_path_and_stats(snk, target):
         body = list(snk.body)
-        blocked = set(body[1:-1])  # head free; tail cell vacates this tick
-        return pathfinding.astar(snk.head(), target, blocked, GRID_W, GRID_H) \
-            or pathfinding.bfs(snk.head(), target, blocked, GRID_W, GRID_H)
+        blocked = set(body[1:-1])  # head free; tail vacates this tick
+        t0 = time.perf_counter()
+        if SOLVER == "A*":
+            p, visited = pathfinding.astar_stats(snk.head(), target, blocked, GRID_W, GRID_H)
+        else:
+            p, visited = pathfinding.bfs_stats(snk.head(), target, blocked, GRID_W, GRID_H)
+        secs = time.perf_counter() - t0
+        steps = (len(p) - 1) if p else 0
+        return p, (SOLVER, visited, steps, secs)
 
     running = True
     while running:
@@ -80,26 +89,21 @@ def main():
                     AUTO = not AUTO; path = None
                 elif e.key == pygame.K_d:
                     SHOW_DEBUG = not SHOW_DEBUG
+                elif e.key == pygame.K_f:
+                    SOLVER = "BFS" if SOLVER == "A*" else "A*"
+                    path = None
                 elif e.key == pygame.K_b:
                     t_merge = time_sort(mergesort, n=5000, trials=1)
                     t_quick = time_sort(quicksort, n=5000, trials=1)
                     bench_msg = f"Bench 5k: merge {t_merge:.3f}s | quick {t_quick:.3f}s"
                     bench_timeleft = 3.0
                 elif e.key in (pygame.K_UP, pygame.K_DOWN, pygame.K_LEFT, pygame.K_RIGHT):
-                    dirmap = {
-                        pygame.K_UP: (0, -1),
-                        pygame.K_DOWN: (0, 1),
-                        pygame.K_LEFT: (-1, 0),
-                        pygame.K_RIGHT: (1, 0),
-                    }
+                    dirmap = {pygame.K_UP:(0,-1), pygame.K_DOWN:(0,1), pygame.K_LEFT:(-1,0), pygame.K_RIGHT:(1,0)}
                     dx, dy = dirmap[e.key]
-                    if QUEUE_MODE and not AUTO:
-                        input_queue.append((dx, dy))          # enqueue in FIFO
-                    else:
-                        snake.set_dir(dx, dy)                 # immediate
+                    if QUEUE_MODE and not AUTO: input_queue.append((dx, dy))
+                    else: snake.set_dir(dx, dy)
         trace_pop(callstack)
 
-        # consume one queued direction per tick (FIFO)
         if QUEUE_MODE and input_queue and not AUTO:
             dx, dy = input_queue.popleft()
             snake.set_dir(dx, dy)
@@ -107,19 +111,21 @@ def main():
         # --- plan (auto) ---
         trace_push(callstack, "plan")
         if AUTO:
-            p = compute_path(snake, food)
+            p, stats = compute_path_and_stats(snake, food)
             if p and len(p) > 1:
                 nx, ny = p[1]
-                body_now = set(list(snake.body)[:-1])  # tail vacates
+                body_now = set(list(snake.body)[:-1])
                 if not in_bounds(nx, ny) or (nx, ny) in body_now:
-                    p = compute_path(snake, food)
+                    p, stats = compute_path_and_stats(snake, food)
             if p and len(p) > 1:
                 nx, ny = p[1]
                 dx, dy = nx - snake.head()[0], ny - snake.head()[1]
                 snake.set_dir(dx, dy, force=True)
                 path = p
+                last_solver_stats = stats
             else:
                 path = None
+                last_solver_stats = (SOLVER, 0, 0, 0.0)
         trace_pop(callstack)
 
         # --- update ---
@@ -146,21 +152,25 @@ def main():
             for cell in path[1:-1]: draw_cell(screen, cell, BLUE)
 
         hud = font.render(
-            f"Score: {score} | Auto: {'ON' if AUTO else 'OFF'} (A) | Queue: {'ON' if QUEUE_MODE else 'OFF'} (Q) | Debug: {'ON' if SHOW_DEBUG else 'OFF'} (D) | Bench (B)",
+            f"Score: {score} | Auto: {'ON' if AUTO else 'OFF'} (A) | Queue: {'ON' if QUEUE_MODE else 'OFF'} (Q) | Debug: {'ON' if SHOW_DEBUG else 'OFF'} (D) | Solver: {SOLVER} (F) | Bench (B)",
             True, WHITE)
         screen.blit(hud, (8, 8))
 
+        # second line: solver stats when auto is on
+        if last_solver_stats and AUTO:
+            s, visited, steps, secs = last_solver_stats
+            line2 = font.render(f"{s}: visited {visited}, path {steps} steps, {secs:.3f}s", True, WHITE)
+            screen.blit(line2, (8, 28))
+
         if QUEUE_MODE and input_queue:
             preview = ''.join({(0,-1):'↑',(0,1):'↓',(-1,0):'←',(1,0):'→'}[d] for d in list(input_queue)[:12])
-            screen.blit(font.render(f"Queue: {len(input_queue)} [{preview}]", True, WHITE), (8, 30))
+            screen.blit(font.render(f"Queue: {len(input_queue)} [{preview}]", True, WHITE), (8, 46))
 
         if SHOW_DEBUG:
-            y = 50
+            y = 64
             for ev in list(debug_events):
-                screen.blit(font.render(ev, True, WHITE), (8, y))
-                y += 16
-        trace_pop(callstack)  # draw
-        trace_pop(callstack)  # tick
+                screen.blit(font.render(ev, True, WHITE), (8, y)); y += 16
+        trace_pop(callstack); trace_pop(callstack)
 
         if bench_timeleft > 0:
             bench_timeleft -= 1.0 / FPS
