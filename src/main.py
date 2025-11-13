@@ -40,21 +40,21 @@ def main():
     food = random_empty(set(snake.body))
     score = 0
 
-    # Feature toggles
-    AUTO = False                  # A: auto pathfinding
-    QUEUE_MODE = False            # Q: input FIFO queue
-    SHOW_DEBUG = True             # D: call-stack pane
+    #  toggles
+    AUTO = False                  # A:  pathfinding
+    QUEUE_MODE = False            # Q:  FIFO queue
+    SHOW_DEBUG = True             # D: call-stack 
     SOLVER = "A*"                 # F: toggle A* / BFS
 
-    # State
+    # state
     input_queue = deque()
     debug_events = deque(maxlen=8)
     bench_msg = None
     bench_timeleft = 0.0
     path = None
-    last_solver_stats = None  # (solver, visited, steps, seconds)
+    last_solver_stats = None  # solver, visited, steps, seconds
 
-    # Debug helpers using Stack ADT
+    # debug helpers using Stack ADT
     def trace_push(stk, label):
         stk.push(label); debug_events.append(f"+ {label}")
     def trace_pop(stk):
@@ -62,7 +62,7 @@ def main():
 
     def compute_path_and_stats(snk, target):
         body = list(snk.body)
-        blocked = set(body[1:-1])  # head free; tail vacates this tick
+        blocked = set(body[1:-1])
         t0 = time.perf_counter()
         if SOLVER == "A*":
             p, visited = pathfinding.astar_stats(snk.head(), target, blocked, GRID_W, GRID_H)
@@ -107,6 +107,18 @@ def main():
         if QUEUE_MODE and input_queue and not AUTO:
             dx, dy = input_queue.popleft()
             snake.set_dir(dx, dy)
+
+        # --- update ---
+        try:
+            snake.move()
+        except Exception as ex:
+            # show a brief error on game over screen instead of crashing
+            running = False
+            score = max(0, score)
+            error_text = f"Runtime error: {ex}"
+        else:
+            error_text = None
+
 
         # --- plan (auto) ---
         trace_push(callstack, "plan")
@@ -156,7 +168,7 @@ def main():
             True, WHITE)
         screen.blit(hud, (8, 8))
 
-        # second line: solver stats when auto is on
+        # solver stats when auto is on
         if last_solver_stats and AUTO:
             s, visited, steps, secs = last_solver_stats
             line2 = font.render(f"{s}: visited {visited}, path {steps} steps, {secs:.3f}s", True, WHITE)
@@ -179,7 +191,7 @@ def main():
         pygame.display.flip()
         clock.tick(FPS)
 
-    game_over(screen, score, font)
+    game_over(screen, score, font)  # keep as-is if you prefer
     pygame.quit()
 
 if __name__ == "__main__":
