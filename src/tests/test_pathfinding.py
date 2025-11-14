@@ -13,7 +13,7 @@ def test_bfs_astar_equal_length_on_open_grid():
 
 def test_no_path_when_blocked_wall():
     start, goal = (0,0), (2,0)
-    blocked = {(1,0), (1,1), (1,-1), (1,2)}  # vertical wall
+    blocked = {(1,0), (1,1), (1,2), (1,3)}  # solid vertical wall
     W, H = 4, 4
     assert bfs(start, goal, blocked, W, H) is None
     assert astar(start, goal, blocked, W, H) is None
