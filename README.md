@@ -1,6 +1,3 @@
-Here’s a clean, copy-paste README.md:
-
-````md
 # Unit 24 — Snake (Python)
 
 A small, assessment-focused Snake game that demonstrates **Abstract Data Types (ADTs)** and **algorithms**: Stack (call-stack trace), Queue (input FIFO), Deque (snake body), BFS/A* shortest-path, and mergesort vs quicksort timings. No file/DB storage; everything runs in memory.
