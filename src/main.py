@@ -40,21 +40,23 @@ def main():
     food = random_empty(set(snake.body))
     score = 0
 
-    #  toggles
-    AUTO = False                  # A:  pathfinding
-    QUEUE_MODE = False            # Q:  FIFO queue
-    SHOW_DEBUG = True             # D: call-stack 
+    # Feature toggles
+    AUTO = False                  # A: auto pathfinding
+    QUEUE_MODE = False            # Q: input FIFO queue
+    SHOW_DEBUG = True             # D: call-stack pane
     SOLVER = "A*"                 # F: toggle A* / BFS
+    PAUSED = False                # P: pause/resume
+    SPEED = "NORMAL"              # S: NORMAL/FAST
 
-    # state
+    # State
     input_queue = deque()
     debug_events = deque(maxlen=8)
     bench_msg = None
     bench_timeleft = 0.0
     path = None
-    last_solver_stats = None  # solver, visited, steps, seconds
+    last_solver_stats = None  # (solver, visited, steps, seconds)
 
-    # debug helpers using Stack ADT
+    # Debug helpers using Stack ADT
     def trace_push(stk, label):
         stk.push(label); debug_events.append(f"+ {label}")
     def trace_pop(stk):
@@ -62,7 +64,7 @@ def main():
 
     def compute_path_and_stats(snk, target):
         body = list(snk.body)
-        blocked = set(body[1:-1])
+        blocked = set(body[1:-1])  # head free; tail vacates this tick
         t0 = time.perf_counter()
         if SOLVER == "A*":
             p, visited = pathfinding.astar_stats(snk.head(), target, blocked, GRID_W, GRID_H)
@@ -90,8 +92,11 @@ def main():
                 elif e.key == pygame.K_d:
                     SHOW_DEBUG = not SHOW_DEBUG
                 elif e.key == pygame.K_f:
-                    SOLVER = "BFS" if SOLVER == "A*" else "A*"
-                    path = None
+                    SOLVER = "BFS" if SOLVER == "A*" else "A*"; path = None
+                elif e.key == pygame.K_p:
+                    PAUSED = not PAUSED
+                elif e.key == pygame.K_s:
+                    SPEED = "FAST" if SPEED == "NORMAL" else "NORMAL"
                 elif e.key == pygame.K_b:
                     t_merge = time_sort(mergesort, n=5000, trials=1)
                     t_quick = time_sort(quicksort, n=5000, trials=1)
@@ -100,29 +105,20 @@ def main():
                 elif e.key in (pygame.K_UP, pygame.K_DOWN, pygame.K_LEFT, pygame.K_RIGHT):
                     dirmap = {pygame.K_UP:(0,-1), pygame.K_DOWN:(0,1), pygame.K_LEFT:(-1,0), pygame.K_RIGHT:(1,0)}
                     dx, dy = dirmap[e.key]
-                    if QUEUE_MODE and not AUTO: input_queue.append((dx, dy))
-                    else: snake.set_dir(dx, dy)
+                    if QUEUE_MODE and not AUTO:
+                        input_queue.append((dx, dy))  # enqueue in FIFO
+                    else:
+                        snake.set_dir(dx, dy)
         trace_pop(callstack)
 
-        if QUEUE_MODE and input_queue and not AUTO:
+        # consume one queued direction per tick (only when not paused/auto)
+        if not PAUSED and QUEUE_MODE and input_queue and not AUTO:
             dx, dy = input_queue.popleft()
             snake.set_dir(dx, dy)
 
-        # --- update ---
-        try:
-            snake.move()
-        except Exception as ex:
-            # show a brief error on game over screen instead of crashing
-            running = False
-            score = max(0, score)
-            error_text = f"Runtime error: {ex}"
-        else:
-            error_text = None
-
-
         # --- plan (auto) ---
         trace_push(callstack, "plan")
-        if AUTO:
+        if AUTO and not PAUSED:
             p, stats = compute_path_and_stats(snake, food)
             if p and len(p) > 1:
                 nx, ny = p[1]
@@ -140,19 +136,20 @@ def main():
                 last_solver_stats = (SOLVER, 0, 0, 0.0)
         trace_pop(callstack)
 
-        # --- update ---
-        trace_push(callstack, "move"); snake.move(); trace_pop(callstack)
+        # --- update (skip when paused) ---
+        if not PAUSED:
+            trace_push(callstack, "move"); snake.move(); trace_pop(callstack)
 
-        trace_push(callstack, "collide")
-        hx, hy = snake.head()
-        if not in_bounds(hx, hy) or (hx, hy) in list(snake.body)[1:]:
-            running = False
-        if (hx, hy) == food:
-            score += 1
-            snake.grow()
-            food = random_empty(set(snake.body))
-            path = None
-        trace_pop(callstack)
+            trace_push(callstack, "collide")
+            hx, hy = snake.head()
+            if not in_bounds(hx, hy) or (hx, hy) in list(snake.body)[1:]:
+                running = False
+            if (hx, hy) == food:
+                score += 1
+                snake.grow()
+                food = random_empty(set(snake.body))
+                path = None
+            trace_pop(callstack)
 
         # --- draw ---
         trace_push(callstack, "draw")
@@ -164,15 +161,16 @@ def main():
             for cell in path[1:-1]: draw_cell(screen, cell, BLUE)
 
         hud = font.render(
-            f"Score: {score} | Auto: {'ON' if AUTO else 'OFF'} (A) | Queue: {'ON' if QUEUE_MODE else 'OFF'} (Q) | Debug: {'ON' if SHOW_DEBUG else 'OFF'} (D) | Solver: {SOLVER} (F) | Bench (B)",
+            f"Score: {score} | Auto: {'ON' if AUTO else 'OFF'} (A) | Queue: {'ON' if QUEUE_MODE else 'OFF'} (Q) | "
+            f"Debug: {'ON' if SHOW_DEBUG else 'OFF'} (D) | Solver: {SOLVER} (F) | "
+            f"Paused: {'ON' if PAUSED else 'OFF'} (P) | Speed: {SPEED} (S) | Bench (B)",
             True, WHITE)
         screen.blit(hud, (8, 8))
 
-        # solver stats when auto is on
+        # second line: solver stats when auto is on
         if last_solver_stats and AUTO:
             s, visited, steps, secs = last_solver_stats
-            line2 = font.render(f"{s}: visited {visited}, path {steps} steps, {secs:.3f}s", True, WHITE)
-            screen.blit(line2, (8, 28))
+            screen.blit(font.render(f"{s}: visited {visited}, path {steps} steps, {secs:.3f}s", True, WHITE), (8, 28))
 
         if QUEUE_MODE and input_queue:
             preview = ''.join({(0,-1):'↑',(0,1):'↓',(-1,0):'←',(1,0):'→'}[d] for d in list(input_queue)[:12])
@@ -182,16 +180,23 @@ def main():
             y = 64
             for ev in list(debug_events):
                 screen.blit(font.render(ev, True, WHITE), (8, y)); y += 16
+
+        # pause overlay
+        if PAUSED:
+            overlay = font.render("PAUSED — press P to resume", True, WHITE)
+            screen.blit(overlay, (20, WINDOW_H // 2 - 12))
+
         trace_pop(callstack); trace_pop(callstack)
 
         if bench_timeleft > 0:
             bench_timeleft -= 1.0 / FPS
             screen.blit(font.render(bench_msg, True, WHITE), (8, WINDOW_H - 26))
 
-        pygame.display.flip()
-        clock.tick(FPS)
+        # speed control
+        speed_mult = 2 if SPEED == "FAST" else 1
+        clock.tick(FPS * speed_mult)
 
-    game_over(screen, score, font)  # keep as-is if you prefer
+    game_over(screen, score, font)
     pygame.quit()
 
 if __name__ == "__main__":
