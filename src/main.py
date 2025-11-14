@@ -34,29 +34,28 @@ def main():
     screen = pygame.display.set_mode((WINDOW_W, WINDOW_H))
     pygame.display.set_caption("Unit 24 Snake")
     clock = pygame.time.Clock()
-    font = pygame.font.SysFont(None, 24)
+
+    pygame.font.init()
+    font = pygame.font.Font(None, 24)
 
     snake = Snake((GRID_W // 2, GRID_H // 2))
     food = random_empty(set(snake.body))
     score = 0
 
-    # Feature toggles
-    AUTO = False                  # A: auto pathfinding
-    QUEUE_MODE = False            # Q: input FIFO queue
-    SHOW_DEBUG = True             # D: call-stack pane
-    SOLVER = "A*"                 # F: toggle A* / BFS
-    PAUSED = False                # P: pause/resume
-    SPEED = "NORMAL"              # S: NORMAL/FAST
+    AUTO = False
+    QUEUE_MODE = False
+    SHOW_DEBUG = True
+    SOLVER = "A*"
+    PAUSED = False
+    SPEED = "NORMAL"
 
-    # State
     input_queue = deque()
     debug_events = deque(maxlen=8)
     bench_msg = None
     bench_timeleft = 0.0
     path = None
-    last_solver_stats = None  # (solver, visited, steps, seconds)
+    last_solver_stats = None  # (solver, visited, steps, secs)
 
-    # Debug helpers using Stack ADT
     def trace_push(stk, label):
         stk.push(label); debug_events.append(f"+ {label}")
     def trace_pop(stk):
@@ -79,24 +78,18 @@ def main():
         callstack = Stack()
         trace_push(callstack, "tick")
 
-        # --- input ---
+        # INPUT
         trace_push(callstack, "input")
         for e in pygame.event.get():
             if e.type == pygame.QUIT:
                 running = False
             elif e.type == pygame.KEYDOWN:
-                if e.key == pygame.K_q:
-                    QUEUE_MODE = not QUEUE_MODE
-                elif e.key == pygame.K_a:
-                    AUTO = not AUTO; path = None
-                elif e.key == pygame.K_d:
-                    SHOW_DEBUG = not SHOW_DEBUG
-                elif e.key == pygame.K_f:
-                    SOLVER = "BFS" if SOLVER == "A*" else "A*"; path = None
-                elif e.key == pygame.K_p:
-                    PAUSED = not PAUSED
-                elif e.key == pygame.K_s:
-                    SPEED = "FAST" if SPEED == "NORMAL" else "NORMAL"
+                if e.key == pygame.K_q: QUEUE_MODE = not QUEUE_MODE
+                elif e.key == pygame.K_a: AUTO = not AUTO; path = None
+                elif e.key == pygame.K_d: SHOW_DEBUG = not SHOW_DEBUG
+                elif e.key == pygame.K_f: SOLVER = "BFS" if SOLVER == "A*" else "A*"; path = None
+                elif e.key == pygame.K_p: PAUSED = not PAUSED
+                elif e.key == pygame.K_s: SPEED = "FAST" if SPEED == "NORMAL" else "NORMAL"
                 elif e.key == pygame.K_b:
                     t_merge = time_sort(mergesort, n=5000, trials=1)
                     t_quick = time_sort(quicksort, n=5000, trials=1)
@@ -105,18 +98,15 @@ def main():
                 elif e.key in (pygame.K_UP, pygame.K_DOWN, pygame.K_LEFT, pygame.K_RIGHT):
                     dirmap = {pygame.K_UP:(0,-1), pygame.K_DOWN:(0,1), pygame.K_LEFT:(-1,0), pygame.K_RIGHT:(1,0)}
                     dx, dy = dirmap[e.key]
-                    if QUEUE_MODE and not AUTO:
-                        input_queue.append((dx, dy))  # enqueue in FIFO
-                    else:
-                        snake.set_dir(dx, dy)
+                    if QUEUE_MODE and not AUTO: input_queue.append((dx, dy))
+                    else: snake.set_dir(dx, dy)
         trace_pop(callstack)
 
-        # consume one queued direction per tick (only when not paused/auto)
         if not PAUSED and QUEUE_MODE and input_queue and not AUTO:
             dx, dy = input_queue.popleft()
             snake.set_dir(dx, dy)
 
-        # --- plan (auto) ---
+        # PLAN
         trace_push(callstack, "plan")
         if AUTO and not PAUSED:
             p, stats = compute_path_and_stats(snake, food)
@@ -136,7 +126,7 @@ def main():
                 last_solver_stats = (SOLVER, 0, 0, 0.0)
         trace_pop(callstack)
 
-        # --- update (skip when paused) ---
+        # UPDATE
         if not PAUSED:
             trace_push(callstack, "move"); snake.move(); trace_pop(callstack)
 
@@ -151,7 +141,7 @@ def main():
                 path = None
             trace_pop(callstack)
 
-        # --- draw ---
+        # DRAW
         trace_push(callstack, "draw")
         screen.fill(BLACK)
         draw_grid(screen)
@@ -163,11 +153,9 @@ def main():
         hud = font.render(
             f"Score: {score} | Auto: {'ON' if AUTO else 'OFF'} (A) | Queue: {'ON' if QUEUE_MODE else 'OFF'} (Q) | "
             f"Debug: {'ON' if SHOW_DEBUG else 'OFF'} (D) | Solver: {SOLVER} (F) | "
-            f"Paused: {'ON' if PAUSED else 'OFF'} (P) | Speed: {SPEED} (S) | Bench (B)",
-            True, WHITE)
+            f"Paused: {'ON' if PAUSED else 'OFF'} (P) | Speed: {SPEED} (S) | Bench (B)", True, WHITE)
         screen.blit(hud, (8, 8))
 
-        # second line: solver stats when auto is on
         if last_solver_stats and AUTO:
             s, visited, steps, secs = last_solver_stats
             screen.blit(font.render(f"{s}: visited {visited}, path {steps} steps, {secs:.3f}s", True, WHITE), (8, 28))
@@ -181,10 +169,9 @@ def main():
             for ev in list(debug_events):
                 screen.blit(font.render(ev, True, WHITE), (8, y)); y += 16
 
-        # pause overlay
         if PAUSED:
-            overlay = font.render("PAUSED — press P to resume", True, WHITE)
-            screen.blit(overlay, (20, WINDOW_H // 2 - 12))
+            screen.blit(font.render("PAUSED — press P to resume", True, WHITE),
+                        (20, WINDOW_H // 2 - 12))
 
         trace_pop(callstack); trace_pop(callstack)
 
@@ -192,7 +179,15 @@ def main():
             bench_timeleft -= 1.0 / FPS
             screen.blit(font.render(bench_msg, True, WHITE), (8, WINDOW_H - 26))
 
-        # speed control
+        # Heartbeat (optional)
+        if not hasattr(main, "_blink"): main._blink = False
+        main._blink = not main._blink
+        pygame.draw.rect(screen, WHITE if main._blink else RED, (4, WINDOW_H - 8, 6, 6))
+
+        # >>> THIS WAS MISSING <<<
+        pygame.display.flip()
+
+        # Speed control
         speed_mult = 2 if SPEED == "FAST" else 1
         clock.tick(FPS * speed_mult)
 

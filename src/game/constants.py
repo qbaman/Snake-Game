@@ -1,12 +1,13 @@
-CELL = 20
-GRID_W, GRID_H = 32, 24
-WINDOW_W, WINDOW_H = GRID_W * CELL, GRID_H * CELL
+CELL = 16
+GRID_W = 40
+GRID_H = 30
+WINDOW_W = GRID_W * CELL
+WINDOW_H = GRID_H * CELL
+FPS = 10
 
-BLACK = (0, 0, 0)
 WHITE = (255, 255, 255)
-GREY  = (40, 40, 40)
+BLACK = (0, 0, 0)
+GREY  = (70, 70, 70)     # brighter grid lines
 GREEN = (0, 200, 0)
-RED   = (200, 0, 0)
-BLUE  = (50, 50, 255) #pathoverlayoptional
-
-FPS = 12
+RED   = (200, 40, 40)
+BLUE  = (70, 120, 255)
