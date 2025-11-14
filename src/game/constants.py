@@ -1,3 +1,4 @@
+# Board size and colours. Change CELL/GRID_* to resize the game.
 CELL = 16
 GRID_W = 40
 GRID_H = 30
@@ -7,7 +8,7 @@ FPS = 10
 
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
-GREY  = (70, 70, 70)     # brighter grid lines
+GREY  = (70, 70, 70)
 GREEN = (0, 200, 0)
 RED   = (200, 40, 40)
 BLUE  = (70, 120, 255)
