@@ -1,19 +1,17 @@
-# Snake body and movement.
-# We store the body as a list where the first item is the head.
+# Snake class - stores the snake body and handles movement.
 from collections import deque
 
 class Snake:
     def __init__(self, head):
         x, y = head
         self.body = deque([(x, y), (x - 1, y), (x - 2, y)])  # start length = 3
-        self.dx, self.dy = 1, 0       # moving right
-        self._grow_pending = 0        # how many extra segments to add
+        self.dx, self.dy = 1, 0    
+        self._grow_pending = 0    
 
     def head(self):
         return self.body[0]
 
     def set_dir(self, dx, dy, force=False):
-        # Stop instant U-turns unless “force” is True (the auto-player uses this)
         if not force and (dx, dy) == (-self.dx, -self.dy):
             return
         self.dx, self.dy = dx, dy
