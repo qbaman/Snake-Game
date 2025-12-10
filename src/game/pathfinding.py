@@ -1,7 +1,4 @@
-# Path finding on a square grid.
-# We use two algorithms:
-#  - BFS: simple, always finds a shortest path (fewest steps) on a grid
-#  - A*: faster on average by using a distance guess (the “heuristic”)
+# Pathfinding functions (BFS and A*) used for the enemy movement.
 
 from collections import deque
 from heapq import heappush, heappop
@@ -29,7 +26,7 @@ def manhattan(a, b):
     """How far two cells are if you can only move in straight lines (no diagonals)."""
     return abs(a[0] - b[0]) + abs(a[1] - b[1])
 
-# -------- Basic versions (used by tests) --------
+#  Basic versions used by tests
 
 def bfs(start, goal, blocked, W, H):
     """Breadth-First Search: explores layer by layer. Finds a shortest path."""
@@ -40,8 +37,8 @@ def bfs(start, goal, blocked, W, H):
         if cur == goal:
             break
         for nb in neighbours(cur, blocked, W, H):
-            if nb not in parent:          # not visited yet
-                parent[nb] = cur          # remember how we got here
+            if nb not in parent:          
+                parent[nb] = cur          
                 q.append(nb)
     if goal not in parent:
         return None
@@ -50,15 +47,15 @@ def bfs(start, goal, blocked, W, H):
 def astar(start, goal, blocked, W, H):
     """A*: uses a priority queue ordered by (cost so far + distance guess)."""
     openh = []
-    heappush(openh, (0, start))           # (priority, cell)
-    g = {start: 0}                         # best cost to reach a cell
+    heappush(openh, (0, start))           
+    g = {start: 0}                         
     parent = {start: None}
     while openh:
         _, cur = heappop(openh)
         if cur == goal:
             break
         for nb in neighbours(cur, blocked, W, H):
-            new_cost = g[cur] + 1         # each step costs 1
+            new_cost = g[cur] + 1         
             if new_cost < g.get(nb, 10**9):
                 g[nb] = new_cost
                 parent[nb] = cur
@@ -68,7 +65,7 @@ def astar(start, goal, blocked, W, H):
         return None
     return _reconstruct(parent, goal)
 
-# -------- Instrumented versions (return path + a small stat) --------
+#  Instrumented versions , return path + a small stat
 
 def bfs_stats(start, goal, blocked, W, H):
     """BFS that also returns how many cells we visited (simple ‘work’ measure)."""
