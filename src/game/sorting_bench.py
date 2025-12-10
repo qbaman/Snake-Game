@@ -1,11 +1,4 @@
-# Small sorting demo used for a quick on-screen benchmark.
-# We compare two classic algorithms:
-#  - Mergesort: always O(n log n), stable (keeps equal items in order)
-#  - Quicksort (simple recursive version): fast on average, but can be slow on
-#    already-sorted or “bad” inputs without extra tricks.
-#
-# The time_sort() helper creates random data, runs the sort, and returns
-# how long it took. We call it from the game when you press the B key.
+# Simple merge sort and quick sort used for a small benchmark in the game.
 
 import random
 import time
@@ -17,7 +10,7 @@ def mergesort(a):
     mid = len(a) // 2
     left = mergesort(a[:mid])     # sort the left half
     right = mergesort(a[mid:])    # sort the right half
-    return _merge(left, right)    # stitch halves together
+    return _merge(left, right)  
 
 def _merge(a, b):
     """Merge two already-sorted lists into one sorted list."""
@@ -38,7 +31,6 @@ def quicksort(a):
     if len(a) <= 1:
         return a
     pivot = a[len(a) // 2]
-    # items less than pivot, equal to pivot, greater than pivot
     less  = [x for x in a if x <  pivot]
     equal = [x for x in a if x == pivot]
     more  = [x for x in a if x >  pivot]
